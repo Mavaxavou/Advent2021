@@ -15,9 +15,8 @@ let read_lines ch =
   List.rev (aux [])
 
 let convert_data (f : 'a -> 'b option) (data : 'a list) : 'b list option =
-  let module E = struct exception IsNone end in
-  let f elt = match f elt with None -> raise E.IsNone | Some v -> v in
-  try Some (List.map f data) with E.IsNone -> None
+  try Some (List.map (fun elt -> f elt |> Option.get) data)
+  with Invalid_argument _ -> None
 
 let () =
   let channel = open_in "data" in
