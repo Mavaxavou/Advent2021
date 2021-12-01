@@ -1,18 +1,14 @@
 let count_increases (xs : int list) =
   let rec aux acc = function
     | [] | [_] -> acc
-    | x1 :: x2 :: xs -> aux (if x1 <= x2 then acc + 1 else acc)  (x2 :: xs)
+    | x1 :: x2 :: xs -> aux (if x1 < x2 then acc + 1 else acc)  (x2 :: xs)
   in aux 0 xs
 
 let count_increases_group (xs : int list) =
   let rec aux acc = function
-    | [] | [_] | [_ ; _] | [_ ; _ ; _] -> acc
-    | x1 :: x2 :: x3 :: x4 :: xs ->
-      let g1 = x1 + x2 + x3 in
-      let g2 = x2 + x3 + x4 in
-      let acc = if g1 < g2 then 1 + acc else acc in
-      aux acc (x2 :: x3 :: x4 :: xs)
-  in aux 0 xs
+    | [] | [_] | [_ ; _] -> acc
+    | x1 :: x2 :: x3 :: xs -> aux (x1 + x2 + x3 :: acc) (x2 :: x3 :: xs)
+  in aux [] xs |> List.rev |> count_increases
 
 let read_lines ch =
   let rec aux acc = try aux (input_line ch :: acc) with End_of_file -> acc in
