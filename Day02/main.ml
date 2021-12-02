@@ -1,4 +1,4 @@
-type position = { horizontal : int ; depth : int ; aim : int}
+type position = { horizontal : int ; depth : int ; aim : int }
 type movement = Forward of int | Down of int | Up of int
 
 let compute_result position =
