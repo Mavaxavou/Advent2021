@@ -11,8 +11,8 @@ let count_increases_group (xs : int list) =
   in aux [] xs |> List.rev |> count_increases
 
 let () =
-  let lines = Input.read_lines "Day01/data" in
-  match Input.convert_data int_of_string_opt lines with
+  let lines = Utils.read_lines "Day01/data" in
+  match Utils.convert_data int_of_string_opt lines with
   | None -> Format.printf "There is an error in the data@."
   | Some data ->
     Format.printf "There is %d increases@." (count_increases data) ;

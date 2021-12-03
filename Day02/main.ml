@@ -26,8 +26,8 @@ let convert (s : string) : movement option =
   | _ -> None
 
 let () =
-  let lines = Input.read_lines "Day02/data" in
-  match Input.convert_data convert lines with
+  let lines = Utils.read_lines "Day02/data" in
+  match Utils.convert_data convert lines with
   | None -> Format.printf "Invalid data@."
   | Some data ->
     let start = { horizontal = 0 ; depth = 0 ; aim = 0 } in
