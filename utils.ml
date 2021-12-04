@@ -22,6 +22,7 @@ let rec to_int : type n. n nat -> int = function
   | Succ n -> 1 + to_int n
 
 
+
 type ('a, 'b) eq = Eq : ('a, 'a) eq
 
 let rec dec_eq : type n m. n nat -> m nat -> (n, m) eq option = fun n m ->

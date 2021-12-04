@@ -56,28 +56,33 @@ let stamp_a_pos (type n) (pos : n Matrix.pos) (bingo : n bingo) : n result =
   | Ok lines, Ok columns ->
     Unfinished { bingo with matrix ; lines ; columns }
 
-let mark (type n) (number : int) (bingo : n bingo) : n result =
+let stamp_a_number (type n) (number : int) (bingo : n bingo) : n result =
   match Data.find number bingo.map with
   | None -> Unfinished bingo
   | Some ps ->
     let stamp r p = match r with Unfinished b -> stamp_a_pos p b | _ -> r in
     List.fold_left stamp (Unfinished bingo) ps
 
+type 'a keep = Yes of 'a | No
+let map_filter f xs =
+  let is_a_keeper = function Yes _ -> true | No -> false in
+  let extract_keeped = function Yes a -> a | No -> assert false in
+  List.(map f xs |> filter is_a_keeper |> map extract_keeped)
+
 let rec play (numbers : int list) (bingos : 'n bingo list) =
   match numbers with
   | [] -> Format.printf "No winner...@."
   | n :: ns ->
     let module E = struct exception Winner of int end in
-    let round_results = List.map (mark n) bingos in
-    let is_there_a_winner index = function
-      | Unfinished bingo -> bingo
+    let play_on_a_bingo bingo =
+      match stamp_a_number n bingo with
+      | Unfinished bingo -> Yes bingo
       | LineCompleted (_, matrix) | ColumnCompleted (_, matrix) ->
         let f _ (v, b) acc = if not b then v + acc else acc in 
         let score = n * Matrix.fold f matrix 0 in
-        raise (E.Winner score)
-    in
-    try play ns (List.mapi is_there_a_winner round_results)
-    with E.Winner score -> Format.printf "Final score : %d@." score
+        Format.printf "Bingo completed with score : %d@." score ;
+        No
+    in play ns (map_filter play_on_a_bingo bingos)
 
 
 
