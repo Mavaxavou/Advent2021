@@ -44,7 +44,7 @@ type 'n result =
   | LineCompleted of 'n Finite.t * (int * bool, 'n) Matrix.t
   | ColumnCompleted of 'n Finite.t * (int * bool, 'n) Matrix.t
 
-let stamp_a_pos (type n) (pos : n Matrix.pos) (bingo : n bingo) : n result =
+let stamp_a_pos (pos : 'n Matrix.pos) (bingo : 'n bingo) : 'n result =
   let decrease n = Finite.decrease_not_zero_exn n in
   let decrease i vs = try Ok (Vect.edit decrease i vs) with _ -> Error i in
   let lines = decrease pos.Matrix.line bingo.lines in
@@ -56,7 +56,7 @@ let stamp_a_pos (type n) (pos : n Matrix.pos) (bingo : n bingo) : n result =
   | Ok lines, Ok columns ->
     Unfinished { bingo with matrix ; lines ; columns }
 
-let stamp_a_number (type n) (number : int) (bingo : n bingo) : n result =
+let stamp_a_number (number : int) (bingo : 'n bingo) : 'n result =
   match Data.find number bingo.map with
   | None -> Unfinished bingo
   | Some ps ->
