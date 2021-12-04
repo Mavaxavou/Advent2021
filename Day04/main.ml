@@ -69,14 +69,14 @@ let rec play (numbers : int list) (bingos : 'n bingo list) =
   | n :: ns ->
     let module E = struct exception Winner of int end in
     let round_results = List.map (mark n) bingos in
-    let is_their_a_winner index = function
+    let is_there_a_winner index = function
       | Unfinished bingo -> bingo
       | LineCompleted (_, matrix) | ColumnCompleted (_, matrix) ->
         let f _ (v, b) acc = if not b then v + acc else acc in 
         let score = n * Matrix.fold f matrix 0 in
         raise (E.Winner score)
     in
-    try play ns (List.mapi is_their_a_winner round_results)
+    try play ns (List.mapi is_there_a_winner round_results)
     with E.Winner score -> Format.printf "Final score : %d@." score
 
 
