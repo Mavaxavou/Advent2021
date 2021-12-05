@@ -70,49 +70,77 @@ end
 module Vect = struct
 
   type ('a, 'n) t =
-    | [] : ('a, zero) t
-    | (::) : 'a * ('a, 'n) t -> ('a, 'n succ) t
+    | Empty : ('a, zero) t
+    | Vect : 'n succ nat * 'a array -> ('a, 'n succ) t
 
-  let rec of_list : type n. 'a list -> n nat -> ('a, n) t option = fun l n ->
-    match l, n with
-    | [], Zero -> Some []
-    | l :: ls, Succ n -> Option.map (fun ls -> l :: ls) (of_list ls n)
-    | _, _ -> None
+  let assert_invariant : type n. ('a, n) t -> ('a, n) t = function
+    | Empty -> Empty
+    | Vect (size, xs) as vect -> assert (to_int size = Array.length xs) ; vect
 
-  let rec length : type n. ('a, n) t -> n nat = function
-    | [] -> Zero
-    | _ :: xs -> Succ (length xs)
+  let check_invariant : type n. ('a, n) t -> ('a, n) t option = function
+    | Empty -> Some Empty
+    | Vect (size, xs) as vect when to_int size = Array.length xs -> Some vect
+    | Vect (_, _) -> None
 
-  let rec make : type n. n nat -> 'a -> ('a, n) t = fun n elt ->
-    match n with
-    | Zero -> []
-    | Succ n -> elt :: make n elt
+  let of_list : type n. 'a list -> n nat -> ('a, n) t option =
+    fun xs -> function
+      | Zero -> Some Empty
+      | Succ _ as size -> check_invariant (Vect (size, Array.of_list xs))
+
+  let length : type n. ('a, n) t -> n nat = function
+    | Empty -> Zero
+    | Vect (size, _) -> size
+
+  let make : type n. 'a -> n nat -> ('a, n) t = fun elt -> function
+    | Zero -> Empty
+    | Succ _ as size -> Vect (size, Array.make (to_int size) elt)
+  
+  let nil = Empty
+
+  let cons : type n. 'a -> ('a, n) t -> ('a, n succ) t = fun elt -> function
+    | Empty -> Vect (Succ Zero, Array.make 1 elt)
+    | Vect (size, xs) ->
+      let ys = Array.append (Array.make 1 elt) xs in
+      assert_invariant (Vect (Succ size, ys))
 
   type ('n, 'x, 'a) folder = 'n Finite.t -> 'x -> 'a -> 'a
-  let rec fold : type n. (n, 'x, 'a) folder -> ('x, n) t -> 'a -> 'a =
-    fun f xs acc ->
-      match xs with
-      | [] -> acc
-      | x :: xs -> fold (fun i -> f (FS i)) xs (f FZ x acc)
+  let fold : type n. (n, 'x, 'a) folder -> ('x, n) t -> 'a -> 'a =
+    fun f vect acc -> match vect with
+      | Empty -> acc
+      | Vect (Succ size, xs) ->
+        let open Finite in
+        let folder i acc = f i xs.(to_int i) acc in
+        let rec aux : type n. (n t -> 'a -> 'a) -> 'a -> n t -> 'a =
+          fun f acc -> function
+          | FZ -> f FZ acc
+          | FS n -> aux (fun i -> f (FS i)) (f FZ acc) n
+        in aux folder acc (of_nat size)
+  
+  let map : type n. ('a -> 'b) -> ('a, n) t -> ('b, n) t = fun f -> function
+    | Empty -> Empty
+    | Vect (size, xs) -> Vect (size, Array.map f xs) 
 
-  let rec map : type n. ('a -> 'b) -> ('a, n) t -> ('b, n) t = fun f -> function
-    | [] -> []
-    | x :: xs -> f x :: map f xs
+  let edit : type n. ('a -> 'a) -> n Finite.t -> ('a, n) t -> ('a, n) t =
+    fun f index -> function
+      | Empty -> Empty
+      | Vect (size, xs) ->
+        let ys = Array.copy xs in
+        let i = Finite.to_int index in
+        ys.(i) <- f ys.(i) ;
+        Vect (size, ys)
 
-  let rec edit : type n. ('a -> 'a) -> n Finite.t -> ('a, n) t -> ('a, n) t =
-    fun f pos xs -> match pos, xs with
-      | FZ, x :: xs -> f x :: xs
-      | FS pos, x :: xs -> x :: edit f pos xs
-
-  let rec pretty : type n.
+  let pretty : type n.
     pp_sep: (Format.formatter -> unit -> unit) ->
     (Format.formatter -> 'a -> unit) ->
     Format.formatter -> ('a, n) t -> unit =
-      fun ~pp_sep f fmt -> function
-        | [] -> ()
-        | [x] -> f fmt x
-        | x :: y :: xs ->
-          Format.fprintf fmt "%a%a%a" f x pp_sep () (pretty ~pp_sep f) (y :: xs)
+      fun ~pp_sep pp_data fmt -> function
+        | Empty -> ()
+        | Vect (Succ _, _) as vect  ->
+          let folder index data () =
+            match index with
+            | Finite.FZ -> pp_data fmt data
+            | Finite.FS _ -> Format.fprintf fmt "%a%a" pp_data data pp_sep ()
+          in fold folder vect ()
 
 end
 

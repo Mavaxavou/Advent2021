@@ -31,8 +31,8 @@ type 'n bingo =
 let create (matrix : (int, 'n) Matrix.t) : 'n bingo =
   let length = Vect.length matrix in
   let counter = Finite.of_nat length in
-  let lines = Vect.make length counter in
-  let columns = Vect.make length counter in
+  let lines = Vect.make counter length in
+  let columns = Vect.make counter length in
   let map = Matrix.fold (fun p n -> Data.add n p) matrix Data.empty in
   let matrix = Matrix.map (fun i -> (i, false)) matrix in
   { matrix ; map ; lines ; columns }
@@ -104,9 +104,9 @@ let rec pack : type m n. n nat -> m nat -> (int, n) Matrix.t list ->
       | Some Eq, [] -> Some (current_batch :: result)
       | None, Sep :: data -> None
       | None, Row row :: data ->
-        pack size (Succ read_lines) result (row :: current_batch) data
+        pack size (Succ read_lines) result (Vect.cons row current_batch) data
       | Some Eq, Sep :: data ->
-        pack size Zero (current_batch :: result) [] data
+        pack size Zero (current_batch :: result) Vect.nil data
       | Some Eq, Row row :: data -> None
 
 let read (size : 'n nat) (lines : string list) =
@@ -114,7 +114,7 @@ let read (size : 'n nat) (lines : string list) =
   | numbers :: _ :: bingos ->
     let numbers = String.split_on_char ',' numbers |> List.map int_of_string in
     Option.bind (Utils.convert_data (read_bingos size) bingos) @@ fun data ->
-      let matrixes = pack size Zero [] [] data in
+      let matrixes = pack size Zero [] Vect.nil data in
       let res matrixes = numbers, List.map create matrixes in
       Option.map res matrixes
   | _ -> None
