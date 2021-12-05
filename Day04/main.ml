@@ -33,7 +33,7 @@ let create (matrix : (int, 'n) Matrix.t) : 'n bingo =
   let counter = Finite.of_nat length in
   let lines = Vect.make counter length in
   let columns = Vect.make counter length in
-  let map = Matrix.fold (fun p n -> Data.add n p) matrix Data.empty in
+  let map = Matrix.foldi (fun p n -> Data.add n p) matrix Data.empty in
   let matrix = Matrix.map (fun i -> (i, false)) matrix in
   { matrix ; map ; lines ; columns }
 
@@ -73,13 +73,12 @@ let rec play (numbers : int list) (bingos : 'n bingo list) =
   match numbers with
   | [] -> Format.printf "No winner...@."
   | n :: ns ->
-    let module E = struct exception Winner of int end in
     let play_on_a_bingo bingo =
       match stamp_a_number n bingo with
       | Unfinished bingo -> Yes bingo
       | LineCompleted (_, matrix) | ColumnCompleted (_, matrix) ->
         let f _ (v, b) acc = if not b then v + acc else acc in 
-        let score = n * Matrix.fold f matrix 0 in
+        let score = n * Matrix.foldi f matrix 0 in
         Format.printf "Bingo completed with score : %d@." score ;
         No
     in play ns (map_filter play_on_a_bingo bingos)

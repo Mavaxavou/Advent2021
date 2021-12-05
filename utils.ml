@@ -21,6 +21,12 @@ let rec to_int : type n. n nat -> int = function
   | Zero -> 0
   | Succ n -> 1 + to_int n
 
+type natural = N : 'n nat -> natural
+
+let rec of_int : int -> natural = function
+  | 0 -> N Zero
+  | n -> let (N k) = of_int (n - 1) in N (Succ k)
+
 
 
 type ('a, 'b) eq = Eq : ('a, 'a) eq
@@ -35,33 +41,39 @@ let rec dec_eq : type n m. n nat -> m nat -> (n, m) eq option = fun n m ->
 
 module Finite = struct
 
-  type 'n t =
-    | FZ : ('n succ) t
-    | FS : 'n t -> ('n succ) t
+  type 'n t = Finite : 'n succ nat * int -> 'n succ t
 
-  let rec of_nat : type n. n nat -> n succ t = function
-    | Zero -> FZ
-    | Succ n -> FS (of_nat n)
+  let is_zero (Finite (_, n)) = n = 0
 
-  let rec cast : type n. n t -> n succ t = function
-    | FZ -> FZ
-    | FS f -> FS (cast f)
+  let of_nat : type n. n nat -> n succ t =
+    fun n -> Finite (Succ n, to_int n)
 
-  let decrease : 'n t -> 'n t option = function
-    | FZ -> None
-    | FS f -> Some (cast f)
+  let of_int : type n. n nat -> int -> n t option = fun max n ->
+    match max with
+    | Zero -> None
+    | Succ _ as max -> if to_int max > n then Some (Finite (max, n)) else None
+
+  let to_int : type n. n t -> int = fun (Finite (_, n)) -> n
+
+  let decrease (Finite (card, n)) =
+    if n > 0 then Some (Finite (card, n - 1)) else None
 
   exception IsZero
-  let decrease_not_zero_exn (f : 'n t) : 'n t =
-    match decrease f with
-    | None | Some FZ -> raise IsZero
-    | Some res -> res
+  let decrease_not_zero_exn (Finite (card, n)) =
+    if n > 1 then Finite (card, n - 1) else raise IsZero
 
-  let rec to_int : type n. n t -> int = function
-    | FZ -> 0
-    | FS f -> 1 + to_int f
+  let range : type n. n t -> n t -> n t list =
+    fun (Finite (card, start)) (Finite (_, stop)) ->
+      let start, stop = if start <= stop then start, stop else stop, start in
+      let rec aux acc start stop =
+        if start = stop then start :: acc
+        else aux (stop :: acc) start (stop - 1)
+      in aux [] start stop |> List.map (fun n -> Finite (card, n))
 
-  let pretty fmt f = Format.pp_print_int fmt (to_int f)
+  let rec fold : type n. (n t -> 'a -> 'a) -> n t -> 'a -> 'a =
+    fun f (Finite (card, n) as index) acc ->
+      if n = 0 then (f index acc)
+      else fold f (Finite (card, n - 1)) (f index acc)
 
 end
 
@@ -103,22 +115,29 @@ module Vect = struct
       let ys = Array.append (Array.make 1 elt) xs in
       assert_invariant (Vect (Succ size, ys))
 
+  let fold : type n. ('x -> 'a -> 'a) -> ('x, n) t -> 'a -> 'a =
+    fun f vect acc -> match vect with
+      | Empty -> acc
+      | Vect (Succ _, xs) -> Array.fold_left (fun acc x -> f x acc) acc xs
+
   type ('n, 'x, 'a) folder = 'n Finite.t -> 'x -> 'a -> 'a
-  let fold : type n. (n, 'x, 'a) folder -> ('x, n) t -> 'a -> 'a =
+  let foldi : type n. (n, 'x, 'a) folder -> ('x, n) t -> 'a -> 'a =
     fun f vect acc -> match vect with
       | Empty -> acc
       | Vect (Succ size, xs) ->
-        let open Finite in
-        let folder i acc = f i xs.(to_int i) acc in
-        let rec aux : type n. (n t -> 'a -> 'a) -> 'a -> n t -> 'a =
-          fun f acc -> function
-          | FZ -> f FZ acc
-          | FS n -> aux (fun i -> f (FS i)) (f FZ acc) n
-        in aux folder acc (of_nat size)
-  
+        let folder i acc = f i xs.(Finite.to_int i) acc in
+        Finite.fold folder (Finite.of_nat size) acc
+
   let map : type n. ('a -> 'b) -> ('a, n) t -> ('b, n) t = fun f -> function
     | Empty -> Empty
     | Vect (size, xs) -> Vect (size, Array.map f xs) 
+
+  let edit_in_place : type n. ('a -> 'a) -> n Finite.t -> ('a, n) t -> unit =
+    fun f index -> function
+      | Empty -> ()
+      | Vect (size, xs) ->
+        let i = Finite.to_int index in
+        xs.(i) <- f xs.(i)
 
   let edit : type n. ('a -> 'a) -> n Finite.t -> ('a, n) t -> ('a, n) t =
     fun f index -> function
@@ -129,19 +148,6 @@ module Vect = struct
         ys.(i) <- f ys.(i) ;
         Vect (size, ys)
 
-  let pretty : type n.
-    pp_sep: (Format.formatter -> unit -> unit) ->
-    (Format.formatter -> 'a -> unit) ->
-    Format.formatter -> ('a, n) t -> unit =
-      fun ~pp_sep pp_data fmt -> function
-        | Empty -> ()
-        | Vect (Succ _, _) as vect  ->
-          let folder index data () =
-            match index with
-            | Finite.FZ -> pp_data fmt data
-            | Finite.FS _ -> Format.fprintf fmt "%a%a" pp_data data pp_sep ()
-          in fold folder vect ()
-
 end
 
 
@@ -151,18 +157,24 @@ module Matrix = struct
   type 'n pos = { line : 'n Finite.t ; column : 'n Finite.t }
   type ('x, 'n) t = (('x, 'n) Vect.t, 'n) Vect.t
 
-  let fold : type n. (n pos -> 'x -> 'a -> 'a) -> ('x, n) t -> 'a -> 'a =
-    fun f -> Vect.(fold (fun line -> fold (fun column -> f {line ; column})))
+  let make elt size =
+    let xs = Vect.make () size in
+    Vect.map (fun () -> Vect.make elt size) xs
+
+  let fold f = Vect.(fold (fold f))
+
+  let foldi : type n. (n pos -> 'x -> 'a -> 'a) -> ('x, n) t -> 'a -> 'a =
+    fun f -> Vect.(foldi (fun line -> foldi (fun column -> f {line ; column})))
 
   let map f matrix = Vect.(map (map f) matrix)
 
+  let edit_in_place : type n. ('a -> 'a) -> n pos -> ('a, n) t -> unit =
+    fun f pos -> function
+      | Vect.Empty -> ()
+      | Vect.Vect (_, lines) ->
+        Vect.edit_in_place f pos.column lines.(Finite.to_int pos.line)
+
   let edit : type n. ('a -> 'a) -> n pos -> ('a, n) t -> ('a, n) t =
     fun f pos matrix -> Vect.(edit (edit f pos.column) pos.line matrix)
-
-  let pretty f fmt matrix =
-    let pp_sep = Format.pp_print_space in
-    let pp_line fmt =
-      Format.fprintf fmt "@[<h>%a@]" (Vect.pretty ~pp_sep f)
-    in Format.fprintf fmt "@[<v>%a@]" (Vect.pretty ~pp_sep pp_line) matrix
 
 end
