@@ -1,5 +1,5 @@
 let next_day population =
-  let length = Array.length population in assert (length = 9) ;
+  let length = Array.length population in
   let to_reproduce = population.(0) in
   for i = 0 to length - 2 do population.(i) <- population.(i + 1) done ;
   population.(6) <- population.(6) + to_reproduce ;
@@ -14,8 +14,8 @@ let parse s =
   let population = Array.make 9 0 in
   let data = String.split_on_char ',' s in
   let f s = let i = int_of_string s in population.(i) <- population.(i) + 1 in
-  List.iter f data ;
-  Some population
+  try List.iter f data ; Some population
+  with Invalid_argument _ -> None
 
 let () =
   let lines = Utils.read_lines "Day06/data" in
