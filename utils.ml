@@ -64,10 +64,10 @@ module Finite = struct
 
   let range : type n. n t -> n t -> n t list =
     fun (Finite (card, start)) (Finite (_, stop)) ->
-      let start, stop = if start <= stop then start, stop else stop, start in
+      let incr = if start <= stop then fun s -> s - 1 else fun s -> s + 1 in
       let rec aux acc start stop =
         if start = stop then start :: acc
-        else aux (stop :: acc) start (stop - 1)
+        else aux (stop :: acc) start (incr stop)
       in aux [] start stop |> List.map (fun n -> Finite (card, n))
 
   let rec fold : type n. (n t -> 'a -> 'a) -> n t -> 'a -> 'a =

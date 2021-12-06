@@ -8,41 +8,23 @@ let empty size = Matrix.make 0 size
 
 
 
-type 'n hv_line =
-  | Ignored
-  | Horizontal of 'n horizontal
-  | Vertical of 'n vertical
-  | Dot of 'n Matrix.pos
-
-and 'n horizontal =
-  { hstart : 'n Finite.t ; hstop : 'n Finite.t ; horizontal : 'n Finite.t }
-
-and 'n vertical =
-  { vstart : 'n Finite.t ; vstop : 'n Finite.t ; vertical : 'n Finite.t }
-
-let horizontal_or_vertical (start, stop) =
+let points_of_line (start, stop) =
   match Matrix.(start.line = stop.line, start.column = stop.column) with
-  | true , true  -> Dot start
-  | false, false -> Ignored
-  | true , false ->
-    let hstart = start.column and hstop = stop.column in
-    Horizontal { hstart ; hstop ; horizontal = start.line }
-  | false, true  ->
-    let vstart = start.line and vstop = stop.line in
-    Vertical { vstart ; vstop ; vertical = start.column }
+  | true, true -> [start]
+  | true, false ->
+    let columns = Finite.range start.column stop.column in
+    List.map (fun column -> Matrix.{ line = start.line ; column }) columns
+  | false, true ->
+    let lines = Finite.range start.line stop.line in
+    List.map (fun line -> Matrix.{ line ; column = start.column }) lines
+  | false, false ->
+    let lines = Finite.range start.line stop.line in
+    let columns = Finite.range start.column stop.column in
+    List.map2 (fun line column -> Matrix.{ line ; column}) lines columns
 
 let draw_hv_line size grid line =
-  match horizontal_or_vertical line with
-  | Ignored -> grid
-  | Dot p -> Matrix.edit ((+) 1) p grid
-  | Horizontal { hstart ; hstop ; horizontal = line } ->
-    let range = Finite.range hstart hstop in
-    let ps = List.map (fun column -> Matrix.{ line ; column }) range in
-    List.iter (fun p -> Matrix.edit_in_place ((+) 1) p grid) ps ; grid
-  | Vertical { vstart ; vstop ; vertical = column } ->
-    let range = Finite.range vstart vstop in
-    let ps = List.map (fun line -> Matrix.{ line ; column }) range in
-    List.iter (fun p -> Matrix.edit_in_place ((+) 1) p grid) ps ; grid
+  let points = points_of_line line in
+  List.iter (fun p -> Matrix.edit_in_place ((+) 1) p grid) points ; grid
 
 
 
