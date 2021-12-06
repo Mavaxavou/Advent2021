@@ -147,7 +147,7 @@ module Vect = struct
         let i = Finite.to_int index in
         ys.(i) <- f ys.(i) ;
         Vect (size, ys)
-
+  
 end
 
 
