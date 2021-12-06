@@ -8,7 +8,7 @@ let empty size = Matrix.make 0 size
 
 
 
-let points_of_line (start, stop) =
+let points_of_line keeps_diagonals (start, stop) =
   match Matrix.(start.line = stop.line, start.column = stop.column) with
   | true, true -> [start]
   | true, false ->
@@ -18,12 +18,16 @@ let points_of_line (start, stop) =
     let lines = Finite.range start.line stop.line in
     List.map (fun line -> Matrix.{ line ; column = start.column }) lines
   | false, false ->
-    let lines = Finite.range start.line stop.line in
-    let columns = Finite.range start.column stop.column in
-    List.map2 (fun line column -> Matrix.{ line ; column}) lines columns
+    if keeps_diagonals then
+      let lines = Finite.range start.line stop.line in
+      let columns = Finite.range start.column stop.column in
+      if List.(length lines = length columns) then
+        List.map2 (fun line column -> Matrix.{ line ; column}) lines columns
+      else []
+    else []
 
-let draw_hv_line size grid line =
-  let points = points_of_line line in
+let draw_hv_line size keeps_diagonals grid line =
+  let points = points_of_line keeps_diagonals line in
   List.iter (fun p -> Matrix.edit_in_place ((+) 1) p grid) points ; grid
 
 
@@ -52,9 +56,8 @@ let () =
   match Utils.convert_data (string_to_line size) lines with
   | None -> assert false
   | Some data ->
-    let grid = empty size in
-    Format.printf "Start computation...@." ;
-    let grid = List.fold_left (draw_hv_line size) grid data in
-    Format.printf "Done...@." ;
+    let no_diag = List.fold_left (draw_hv_line size false) (empty size) data in
+    let with_diag = List.fold_left (draw_hv_line size true) (empty size) data in
     let f count sum = if count >= 2 then 1 + sum else sum in
-    Format.printf "%d overlaps@." (Matrix.fold f grid 0)
+    Format.printf "%d overlaps without diagonals@." (Matrix.fold f no_diag 0) ;
+    Format.printf "%d overlaps with diagonals@." (Matrix.fold f with_diag 0)
