@@ -43,6 +43,9 @@ module Finite = struct
 
   type 'n t = Finite : 'n succ nat * int -> 'n succ t
 
+  let equal : type n. n t -> n t -> bool =
+    fun (Finite (_, x)) (Finite (_, y)) -> x = y
+
   let is_zero (Finite (_, n)) = n = 0
 
   let of_nat : type n. n nat -> n succ t =
@@ -128,9 +131,24 @@ module Vect = struct
         let folder i acc = f i xs.(Finite.to_int i) acc in
         Finite.fold folder (Finite.of_nat size) acc
 
+  let iteri : type n. (n Finite.t -> 'x -> unit) -> ('x, n) t -> unit =
+    fun f xs -> foldi (fun i x () -> f i x) xs ()
+
   let map : type n. ('a -> 'b) -> ('a, n) t -> ('b, n) t = fun f -> function
     | Empty -> Empty
     | Vect (size, xs) -> Vect (size, Array.map f xs) 
+
+  let mapi : type n. (n Finite.t -> 'a -> 'b) -> ('a, n) t -> ('b, n) t =
+    fun f -> function
+      | Empty -> Empty
+      | Vect (size, xs) ->
+        let f i x = f (Option.get @@ Finite.of_int size i) x in
+        Vect (size, Array.mapi f xs)
+
+  let map2 : type n. ('a -> 'b -> 'c) -> ('a, n) t -> ('b, n) t -> ('c, n) t =
+    fun f xs ys -> match xs, ys with
+      | Empty, Empty -> Empty
+      | Vect (size, xs), Vect (_, ys) -> Vect (size, Array.map2 f xs ys)
 
   let edit_in_place : type n. ('a -> 'a) -> n Finite.t -> ('a, n) t -> unit =
     fun f index -> function
@@ -147,6 +165,23 @@ module Vect = struct
         let i = Finite.to_int index in
         ys.(i) <- f ys.(i) ;
         Vect (size, ys)
+
+  let get : type n. n Finite.t -> ('a, n) t -> 'a = fun index vect ->
+    match index, vect with
+    | Finite.Finite _, Vect (_, xs) -> xs.(Finite.to_int index)
+
+  let equal : type n. ('a -> 'a -> bool) -> ('a, n) t -> ('a, n) t -> bool =
+    fun eq xs ys -> fold (&&) (map2 eq xs ys) true
+
+  let pretty : type n. (Format.formatter -> 'a -> unit) ->
+    Format.formatter -> ('a, n) t -> unit =
+      fun pp fmt -> function
+        | Empty -> ()
+        | Vect (size, xs) ->
+          Format.fprintf fmt "%d -> %a" 0 pp xs.(0) ;
+          for i = 1 to to_int size - 1 do
+            Format.fprintf fmt " ;@ %d -> %a" i pp xs.(i)
+          done
   
 end
 
