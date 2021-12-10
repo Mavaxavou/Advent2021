@@ -1,10 +1,10 @@
 open Utils
 
-type 'n grid = (int, 'n) Matrix.t
-type 'n point = 'n Matrix.pos
+type 'n grid = (int, 'n, 'n) Matrix.t
+type 'n point = ('n, 'n) Matrix.pos
 type 'n line = 'n point * 'n point
 
-let empty size = Matrix.make 0 size
+let empty size = Matrix.make 0 size size
 
 
 

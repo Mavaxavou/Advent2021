@@ -73,7 +73,7 @@ let string_to_bit_vector (s : string) : bit_vector option =
     let module E = struct exception Invalid end in
     let bit = function '0' -> 0 | '1' -> 1 | _ -> raise E.Invalid in
     let add_shift r b = r lsl 1 + bit b in
-    try Some { length ; data = String.fold_left add_shift 0 s }
+    try Some { length ; data = String.to_seq s |> Seq.fold_left add_shift 0 }
     with E.Invalid -> None
   else None
 

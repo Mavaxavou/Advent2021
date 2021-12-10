@@ -56,10 +56,13 @@ module Finite = struct
     | Zero -> None
     | Succ _ as max -> if to_int max > n then Some (Finite (max, n)) else None
 
-  let to_int : type n. n t -> int = fun (Finite (_, n)) -> n
-
-  let decrease (Finite (card, n)) =
+  let decrease : type n. n t -> n t option = fun (Finite (card, n)) ->
     if n > 0 then Some (Finite (card, n - 1)) else None
+
+  let increase : type n. n t -> n t option = fun (Finite (card, n)) ->
+    if n < to_int card - 1 then Some (Finite (card, n + 1)) else None
+
+  let to_int : type n. n t -> int = fun (Finite (_, n)) -> n
 
   exception IsZero
   let decrease_not_zero_exn (Finite (card, n)) =
@@ -77,6 +80,12 @@ module Finite = struct
     fun f (Finite (card, n) as index) acc ->
       if n = 0 then (f index acc)
       else fold f (Finite (card, n - 1)) (f index acc)
+
+  let (<) : type n. n t -> n t -> bool =
+    fun (Finite (_, x)) (Finite (_, y)) -> x < y
+
+  let pretty : type n. Format.formatter -> n t -> unit =
+    fun fmt (Finite (_, n)) -> Format.pp_print_int fmt n
 
 end
 
@@ -101,6 +110,12 @@ module Vect = struct
     fun xs -> function
       | Zero -> Some Empty
       | Succ _ as size -> check_invariant (Vect (size, Array.of_list xs))
+
+  let of_string : type n. string -> n nat -> (char, n) t option =
+    fun s -> function
+      | Zero -> Some Empty
+      | Succ _ as size ->
+        check_invariant (Vect (size, String.to_seq s |> Array.of_seq))
 
   let length : type n. ('a, n) t -> n nat = function
     | Empty -> Zero
@@ -189,27 +204,48 @@ end
 
 module Matrix = struct
 
-  type 'n pos = { line : 'n Finite.t ; column : 'n Finite.t }
-  type ('x, 'n) t = (('x, 'n) Vect.t, 'n) Vect.t
+  type ('l, 'c) pos = { line : 'l Finite.t ; column : 'c Finite.t }
+  type ('x, 'l, 'c) t = (('x, 'c) Vect.t, 'l) Vect.t
 
-  let make elt size =
-    let xs = Vect.make () size in
-    Vect.map (fun () -> Vect.make elt size) xs
+  let make elt lines columns =
+    let xs = Vect.make () lines in
+    Vect.map (fun () -> Vect.make elt columns) xs
 
   let fold f = Vect.(fold (fold f))
 
-  let foldi : type n. (n pos -> 'x -> 'a -> 'a) -> ('x, n) t -> 'a -> 'a =
+  type ('l, 'c, 'x, 'a) folder = ('l, 'c) pos -> 'x -> 'a -> 'a
+  let foldi : type l c. (l, c, 'x, 'a) folder -> ('x, l, c) t -> 'a -> 'a =
     fun f -> Vect.(foldi (fun line -> foldi (fun column -> f {line ; column})))
 
   let map f matrix = Vect.(map (map f) matrix)
 
-  let edit_in_place : type n. ('a -> 'a) -> n pos -> ('a, n) t -> unit =
+  let filter : type l c. ((l, c) pos -> 'a -> bool) -> ('x, l, c) t -> ((l, c) pos * 'a) list =
+    fun pred matrix ->
+      let f pos x acc = if pred pos x then (pos, x) :: acc else acc in
+      foldi f matrix []
+
+  let edit_in_place : type l c. ('a -> 'a) -> (l, c) pos -> ('a, l, c) t -> unit =
     fun f pos -> function
       | Vect.Empty -> ()
       | Vect.Vect (_, lines) ->
         Vect.edit_in_place f pos.column lines.(Finite.to_int pos.line)
 
-  let edit : type n. ('a -> 'a) -> n pos -> ('a, n) t -> ('a, n) t =
+  let edit : type l c. ('a -> 'a) -> (l, c) pos -> ('a, l, c) t -> ('a, l, c) t =
     fun f pos matrix -> Vect.(edit (edit f pos.column) pos.line matrix)
+
+  let get : type l c. ('a, l, c) t -> (l, c) pos -> 'a = fun m pos ->
+    Vect.get pos.column (Vect.get pos.line m)
+
+  let adjacents : type l c. (l, c) pos -> ('a, l, c) t -> (l, c) pos option list =
+    fun pos m ->
+      let update_column column = { pos with column } in
+      let update_line   line   = { pos with line   } in
+      let left  = Option.map update_column (Finite.decrease pos.column) in
+      let right = Option.map update_column (Finite.increase pos.column) in
+      let above = Option.map update_line   (Finite.decrease pos.line  ) in
+      let below = Option.map update_line   (Finite.increase pos.line  ) in
+      [ left ; right ; above ; below ]
+
+  let adjacents_values pos m = adjacents pos m |> List.map (Option.map (get m))
 
 end

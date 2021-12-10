@@ -5,14 +5,14 @@ open Utils
 module Data = struct
 
   module M = Map.Make(Int)
-  type 'n t = 'n Matrix.pos list M.t
+  type 'n t = ('n, 'n) Matrix.pos list M.t
 
   let empty = M.empty
 
-  let find (data : int) (m : 'n t) : 'n Matrix.pos list option =
+  let find (data : int) (m : 'n t) : ('n, 'n) Matrix.pos list option =
     M.find_opt data m
 
-  let add (data : int) (p : 'n Matrix.pos) (m : 'n t) : 'n t =
+  let add (data : int) (p : ('n, 'n) Matrix.pos) (m : 'n t) : 'n t =
     match M.find_opt data m with
     | None -> M.add data [p] m
     | Some ps -> M.add data (p :: ps) m
@@ -22,13 +22,13 @@ end
 
 
 type 'n bingo =
-  { matrix : (int * bool, 'n) Matrix.t
+  { matrix : (int * bool, 'n, 'n) Matrix.t
   ; map : 'n Data.t
   ; lines : ('n succ Finite.t, 'n) Vect.t
   ; columns : ('n succ Finite.t, 'n) Vect.t
   }
 
-let create (matrix : (int, 'n) Matrix.t) : 'n bingo =
+let create (matrix : (int, 'n, 'n) Matrix.t) : 'n bingo =
   let length = Vect.length matrix in
   let counter = Finite.of_nat length in
   let lines = Vect.make counter length in
@@ -41,10 +41,10 @@ let create (matrix : (int, 'n) Matrix.t) : 'n bingo =
 
 type 'n result =
   | Unfinished of 'n bingo
-  | LineCompleted of 'n Finite.t * (int * bool, 'n) Matrix.t
-  | ColumnCompleted of 'n Finite.t * (int * bool, 'n) Matrix.t
+  | LineCompleted of 'n Finite.t * (int * bool, 'n, 'n) Matrix.t
+  | ColumnCompleted of 'n Finite.t * (int * bool, 'n, 'n) Matrix.t
 
-let stamp_a_pos (pos : 'n Matrix.pos) (bingo : 'n bingo) : 'n result =
+let stamp_a_pos (pos : ('n, 'n) Matrix.pos) (bingo : 'n bingo) : 'n result =
   let decrease n = Finite.decrease_not_zero_exn n in
   let decrease i vs = try Ok (Vect.edit decrease i vs) with _ -> Error i in
   let lines = decrease pos.Matrix.line bingo.lines in
@@ -94,9 +94,9 @@ let read_bingos (size : 'n nat) (line : string) : 'n data_read option =
   if String.length line = 0 then Some Sep
   else Vect.of_list (split line) size |> Option.map row
 
-let rec pack : type m n. n nat -> m nat -> (int, n) Matrix.t list ->
+let rec pack : type m n. n nat -> m nat -> (int, n, n) Matrix.t list ->
   ((int, n) Vect.t, m) Vect.t -> n data_read list ->
-  (int, n) Matrix.t list option =
+  (int, n, n) Matrix.t list option =
     fun size read_lines result current_batch data ->
       match dec_eq size read_lines, data with
       | None, [] -> None
