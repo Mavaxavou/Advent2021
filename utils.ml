@@ -1,3 +1,10 @@
+module Option = struct
+  include Option
+  let zip x y = match x, y with Some x, Some y -> Some (x, y) | _, _ -> None
+end
+
+
+
 let map_int (f : int -> 'a) (n : int) : 'a list =
   let rec aux acc i = if i >= n then acc else aux (f i :: acc) (i + 1) in
   if n < 0 then [] else aux [] 0
@@ -193,9 +200,9 @@ module Vect = struct
       fun pp fmt -> function
         | Empty -> ()
         | Vect (size, xs) ->
-          Format.fprintf fmt "%d -> %a" 0 pp xs.(0) ;
+          Format.fprintf fmt "%a" pp xs.(0) ;
           for i = 1 to to_int size - 1 do
-            Format.fprintf fmt " ;@ %d -> %a" i pp xs.(i)
+            Format.fprintf fmt "%a" pp xs.(i)
           done
   
 end
@@ -219,7 +226,10 @@ module Matrix = struct
 
   let map f matrix = Vect.(map (map f) matrix)
 
-  let filter : type l c. ((l, c) pos -> 'a -> bool) -> ('x, l, c) t -> ((l, c) pos * 'a) list =
+  let iteri f matrix = foldi (fun pos data () -> f pos data) matrix ()
+
+  type ('a, 'l, 'c) pred = ('l, 'c) pos -> 'a -> bool
+  let filter : type l c. ('a, l, c) pred -> ('x, l, c) t -> ((l, c) pos * 'a) list =
     fun pred matrix ->
       let f pos x acc = if pred pos x then (pos, x) :: acc else acc in
       foldi f matrix []
@@ -230,14 +240,17 @@ module Matrix = struct
       | Vect.Vect (_, lines) ->
         Vect.edit_in_place f pos.column lines.(Finite.to_int pos.line)
 
+  let set : type l c. (l, c) pos -> 'a -> ('a, l, c) t -> unit =
+    fun pos data matrix -> edit_in_place (fun _ -> data) pos matrix
+
   let edit : type l c. ('a -> 'a) -> (l, c) pos -> ('a, l, c) t -> ('a, l, c) t =
     fun f pos matrix -> Vect.(edit (edit f pos.column) pos.line matrix)
 
   let get : type l c. ('a, l, c) t -> (l, c) pos -> 'a = fun m pos ->
     Vect.get pos.column (Vect.get pos.line m)
 
-  let adjacents : type l c. (l, c) pos -> ('a, l, c) t -> (l, c) pos option list =
-    fun pos m ->
+  let adjacents : type l c. (l, c) pos -> (l, c) pos option list =
+    fun pos ->
       let update_column column = { pos with column } in
       let update_line   line   = { pos with line   } in
       let left  = Option.map update_column (Finite.decrease pos.column) in
@@ -246,6 +259,20 @@ module Matrix = struct
       let below = Option.map update_line   (Finite.increase pos.line  ) in
       [ left ; right ; above ; below ]
 
-  let adjacents_values pos m = adjacents pos m |> List.map (Option.map (get m))
+  let diagonals : type l c. (l, c) pos -> (l, c) pos option list =
+    fun { column ; line } ->
+      let to_pos (line, column) = { line ; column } in
+      let build line column = Option.(zip line column |> map to_pos) in
+      let a =  Finite.(build (decrease line) (decrease column)) in
+      let b =  Finite.(build (decrease line) (increase column)) in
+      let c =  Finite.(build (increase line) (decrease column)) in
+      let d =  Finite.(build (increase line) (increase column)) in
+      [ a ; b ; c ; d ]
+
+  let adjacents_values pos m = adjacents pos |> List.map (Option.map (get m))
+
+  let pretty pp fmt m =
+    let pp fmt = Format.fprintf fmt "%a@." (Vect.pretty pp) in
+    Vect.pretty pp fmt m
 
 end
