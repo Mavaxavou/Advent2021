@@ -50,6 +50,9 @@ module Finite = struct
 
   type 'n t = Finite : 'n succ nat * int -> 'n succ t
 
+  let compare : type n. n t -> n t -> int =
+    fun (Finite (_, x)) (Finite (_, y)) -> compare x y
+
   let equal : type n. n t -> n t -> bool =
     fun (Finite (_, x)) (Finite (_, y)) -> x = y
 
